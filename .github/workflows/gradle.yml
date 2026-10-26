@@ -14,6 +14,7 @@ jobs:
       - name: Запуск SUT (System Under Test)
         run: Start-Process -FilePath java -ArgumentList "-jar", ".\artifacts\app-order.jar" -NoNewWindow
       - name: Wait for SUT to start
+        shell: cmd
         run: timeout /t 5 /nobreak
       - name: Build and test with Gradle
         run: .\gradlew.bat test
