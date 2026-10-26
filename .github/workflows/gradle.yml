@@ -1,28 +1,33 @@
 name: Java CI
-
-on: [push, pull_request]
-
+on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      # Клонируем репозиторий
+      - uses: actions/checkout@v4
 
+      # Устанавливаем JDK
       - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 11
+          java-version: '11'
           cache: gradle
 
+      # Запускаем SUT (System Under Test) в фоне
       - name: Запуск SUT (System Under Test)
-        # Запускаем в фоне, чтобы workflow продолжил выполнение
-        run: java -jar ./artifacts/app-order.jar &
+        run: |
+          java -jar ./artifacts/app-order.jar &
 
+      # Ждём запуска приложения
       - name: Wait for SUT to start
         run: sleep 5
 
+      ***# Делаем скрипт исполняемым***
+      - name: Make gradlew executable
+        run: chmod +x ./
+
+      # Собираем проект и запускаем тесты
       - name: Build and test with Gradle
         run: ./gradlew test
