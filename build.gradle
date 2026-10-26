@@ -1,6 +1,6 @@
+@'
 plugins {
     id 'java'
-    // Эти два плагина обязательны для Spring Boot
     id 'org.springframework.boot' version '3.3.4'
     id 'io.spring.dependency-management' version '1.1.6'
 }
@@ -9,7 +9,6 @@ group = 'ru.netology'
 version = '1.0-SNAPSHOT'
 
 java {
-    // Для Spring Boot 3.x требуется минимум Java 17
     sourceCompatibility = '17'
 }
 
@@ -18,10 +17,8 @@ repositories {
 }
 
 dependencies {
-    // Основная зависимость: включает встроенный сервер Tomcat и MVC
     implementation 'org.springframework.boot:spring-boot-starter-web'
-
-    // ТВОИ ТЕСТОВЫЕ ЗАВИСИМОСТИ (оставлены без изменений)
+    
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation 'org.seleniumhq.selenium:selenium-java:4.29.0'
     testImplementation 'io.github.bonigarcia:webdrivermanager:5.9.3'
@@ -29,6 +26,6 @@ dependencies {
 
 test {
     useJUnitPlatform()
-    // Свойство для отключения менеджера паролей в Chrome (нужно для тестов)
     systemProperty 'chromeoptions.prefs', System.getProperty('chromeoptions.prefs', "profile.password_manager_leak_detection=false")
 }
+'@ | Out-File -FilePath build.gradle -Encoding UTF8
