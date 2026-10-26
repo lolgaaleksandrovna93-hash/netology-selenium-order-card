@@ -1,7 +1,6 @@
 plugins {
     id 'java'
-    // УБРАЛИ springBoot, так как у тебя обычный Java класс Main, а не Spring Boot
-    id 'application' // ДОБАВИЛИ этот плагин для создания запускаемого JAR
+    id 'application' // <--- ЭТО ГЛАВНОЕ: добавляет манифест с Main-Class
 }
 
 group = 'ru.netology'
@@ -11,12 +10,10 @@ java {
     sourceCompatibility = '17'
 }
 
-// Указываем, какой класс является точкой входа
 application {
-    mainClass = 'ru.netology.Main'
+    mainClass = 'ru.netology.Main' // <--- Указываем твой класс из скриншота
 }
 
 dependencies {
-    // Если для тестов нужен Selenium, оставь эту строку:
-    // implementation 'org.seleniumhq.selenium:selenium-java:4.15.0'
+    // Если нужны зависимости для тестов (Selenium и т.д.), добавляй сюда
 }
