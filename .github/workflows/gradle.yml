@@ -25,30 +25,31 @@ jobs:
         shell: powershell
         run: .\gradlew.bat build -x test
 
-      # 2. Запуск SUT в фоне (ИСПРАВЛЕННАЯ ВЕРСИЯ)
-      # Мы используем трюк: запускаем java в фоне через Start-Process, 
-      # но сразу сохраняем его ID, чтобы потом можно было бы убить, если нужно.
+      # 2. Запуск SUT в фоне (ИСПРАВЛЕНО: используем CMD вместо PowerShell)
+      # CMD не ломается от экранирования символов в YAML и стабильно запускает процессы в фоне через start /B
       - name: Launch SUT (Background)
-        shell: powershell
+        shell: cmd
         run: |
-          \$jarPath = Get-ChildItem -Path ".\build\libs" -Filter "*.jar" | Select-Object -First 1 -ExpandProperty FullName
-          if (-not \$jarPath) { Write-Error "Jar not found"; exit 1 }
+          @echo off
+          REM Ищем первый JAR файл в папке build/libs
+          for /f "delims=" %%i in ('dir .\build\libs\*.jar /b') do set "JAR_FILE=%%i" & goto :found
+          :found
           
-          Write-Host "Launching SUT: \$jarPath"
+          if "%JAR_FILE%"=="" (
+            echo ERROR: JAR file not found in .\build\libs!
+            exit /b 1
+          )
           
-          # Запускаем в фоне. 
-          # -PassThru возвращает объект процесса, чтобы мы могли видеть его статус
-          \$process = Start-Process -FilePath java `
-            -ArgumentList "-jar", \$jarPath, "--server.port=9999" `
-            -NoNewWindow `
-            -PassThru
+          echo Found JAR: %JAR_FILE%
+          echo Launching SUT on port 9999...
           
-          # Сохраняем PID в переменную окружения для отладки (опционально)
-          echo "SUT_PID=$($process.Id)" >> \$env:GITHUB_ENV
+          REM start /B запускает процесс в фоне без открытия нового окна.
+          REM Управление сразу возвращается следующему шагу пайплайна.
+          start /B java -jar .\build\libs\%JAR_FILE% --server.port=9999
           
-          Write-Host "SUT started with PID: $($process.Id)"
+          echo SUT started successfully.
 
-      # 3. Ждем готовности (Тот же скрипт, что и раньше)
+      # 3. Ждем готовности приложения
       - name: Wait for application to be ready
         shell: powershell
         run: |
@@ -73,7 +74,6 @@ jobs:
 
           if ($attempt -eq $maxAttempts) {
             Write-Error "❌ Application failed to start within time limit."
-            # Тут можно вывести логи, если приложение упало
             exit 1
           }
 
@@ -81,3 +81,16 @@ jobs:
       - name: Run tests with Gradle
         shell: powershell
         run: .\gradlew.bat test --stacktrace
+
+      # 5. Очистка: убиваем зависшие процессы Java в конце джобы
+      # Выполняется всегда (даже если тесты упали), чтобы освободить порт 9999 для следующих запусков
+      - name: Stop SUT (Cleanup)
+        if: always()
+        shell: cmd
+        run: |
+          @echo off
+          echo Stopping any remaining Java processes...
+          REM taskkill /F принудительно убивает все процессы java.exe на раннере.
+          REM В среде GitHub Actions это безопасно, так как раннер одноразовый.
+          taskkill /F /IM java.exe >nul 2>&1
+          echo Cleanup complete.
