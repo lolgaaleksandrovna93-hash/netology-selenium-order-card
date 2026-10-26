@@ -1,64 +1,40 @@
 name: Java CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-
+on: [push]
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up JDK 17
+      - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '11'
           cache: gradle
-
-      # SUT живёт только внутри этого шага, поэтому старт, ожидание и тесты — вместе
-      - name: Run tests with SUT
+      - name: Launch SUT (System Under Test)
+        shell: cmd
+        run: start /B java -jar .\artifacts\app-order.jar -Dserver.port=9999
+      - name: Wait for SUT to be ready
         shell: pwsh
         run: |
-          $process = Start-Process -FilePath "java" `
-            -ArgumentList "-jar", "./artifacts/app-mbank.jar" `
-            -RedirectStandardOutput "sut.log" `
-            -RedirectStandardError "sut.err.log" `
-            -PassThru
-
-          $port = 9999
-          $timeout = 60
-          $elapsed = 0
-          while ($elapsed -lt $timeout) {
+          \$maxAttempts = 30
+          \$attempt = 0
+          while ($attempt -lt $maxAttempts) {
             try {
-              $client = New-Object Net.Sockets.TcpClient
-              $client.Connect("localhost", $port)
-              $client.Close()
-              Write-Host "SUT is up on port $port"
-              break
+              \$response = Invoke-WebRequest -Uri "http://localhost:9999" -Method Head -TimeoutSec 5 -ErrorAction Stop
+              if (\$response.StatusCode -eq 200) {
+                Write-Host "SUT is ready!"
+                break
+              }
             } catch {
-              Start-Sleep -Seconds 1
-              $elapsed++
+              Write-Host "SUT not ready yet, waiting... ($attempt/$maxAttempts)"
             }
+            Start-Sleep -Seconds 2
+            \$attempt++
           }
-          if ($elapsed -ge $timeout) {
-            Get-Content sut.log -ErrorAction SilentlyContinue
-            Get-Content sut.err.log -ErrorAction SilentlyContinue
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            throw "SUT did not start within $timeout seconds"
+          if ($attempt -eq $maxAttempts) {
+            Write-Error "SUT failed to start within timeout"
+            exit 1
           }
-
-          ./gradlew.bat test --no-daemon
-          $testsFailed = ($LASTEXITCODE -ne 0)
-
-          Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-
-          Write-Host "=== sut.log ==="
-          Get-Content sut.log -ErrorAction SilentlyContinue
-          Write-Host "=== sut.err.log ==="
-          Get-Content sut.err.log -ErrorAction SilentlyContinue
-
-          if ($testsFailed) { exit 1 }
+      - name: Build and test with Gradle
+        run: .\gradlew.bat test
