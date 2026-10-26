@@ -1,43 +1,23 @@
-name: Java CI # Название пайплайна
-on: [push] # Триггер: запускать при каждом пуше
-
+name: Java CI
+on: [push]
 jobs:
   build:
-    runs-on: windows-latest # Используем агент под управлением Windows
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4 # Шаг 1: клонируем репозиторий
-
-      # Шаг 2: устанавливаем JDK 11
+      - uses: actions/checkout@v4
       - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
-          distribution: temurin # Дистрибутив OpenJDK от Ecuplant
-          java-version: "11"   # Версия Java
-          cache: gradle         # Кэшируем зависимости Gradle для ускорения последующих сборок
-
-      # Шаг 3: запускаем SUT (System Under Test) в фоне
-      # Для Windows используется PowerShell-команда Start-Process.
-      # Она не блокирует поток выполнения, а сразу возвращает управление.
+          distribution: temurin
+          java-version: '11'
+          cache: gradle
       - name: Launch SUT (System Under Test)
         run: |
           Start-Process -FilePath java `
-            -ArgumentList "-jar", "./artifacts/app-order.jar", "-port=9999"
-      # Советую явно указать порт, так как на серверах может быть занят дефолтный.
-
-      # Шаг 4: даём приложению время запуститься
-      # Без этой паузы тесты могут упасть, так как сервер ещё не будет доступен.
+            -ArgumentList "-jar", ".\artifacts\app-order.jar", "-Dserver.port=9999" `
+            -NoNewWindow
       - name: Wait for SUT to start
-        run: sleep 5
-
-  **** делаем скрипт исполнимым ****
-# На этом шаге мы просто меняем права доступа у скрипта gradlew,
-# но он уже должен быть исполняемым после клонирования.
-# Этот шаг можно оставить или убрать без потери функциональности.
-- name: Make gradlew executable
-  run: chmod +x ./
-
-# Шаг 5: собираем проект и запускаем тесты
-# Здесь важно использовать относительный путь ./gradlew,
-# а не батник \gradlew.bat, иначе тесты будут выполняться локально.
-- name: Build and test with Gradle
-  run: ./gradlew test
+        shell: cmd
+        run: timeout /t 5 /nobreak
+      - name: Build and test with Gradle
+        run: .\gradlew.bat test
