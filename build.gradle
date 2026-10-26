@@ -1,14 +1,15 @@
 plugins {
     id 'java'
-    // ДОБАВЛЕНО: Плагин Spring Boot для запуска приложения
-    id 'org.springframework.boot' version '3.3.4' 
+    // Плагин Spring Boot должен быть здесь, чтобы управлять версиями зависимостей
+    id 'org.springframework.boot' version '3.3.4'
+    id 'io.spring.dependency-management' version '1.1.6' // Этот плагин автоматически подставит версии для starter-ов
 }
 
-group 'ru.netology'
-version '1.0-SNAPSHOT'
+group = 'ru.netology'
+version = '1.0-SNAPSHOT'
 
 java {
-    sourceCompatibility = 11
+    sourceCompatibility = 17 // Должно совпадать с JDK в CI
 }
 
 compileJava.options.encoding = "UTF-8"
@@ -19,9 +20,10 @@ repositories {
 }
 
 dependencies {
-    // ДОБАВЛЕНО: Зависимость Spring Boot Web (чтобы приложение могло стартовать)
+    // Теперь можно писать без версии — dependency-management подставит нужную
     implementation 'org.springframework.boot:spring-boot-starter-web'
     
+    // Тестовые зависимости
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation 'org.seleniumhq.selenium:selenium-java:4.29.0'
     testImplementation 'io.github.bonigarcia:webdrivermanager:5.9.3'
@@ -30,10 +32,4 @@ dependencies {
 test {
     useJUnitPlatform()
     systemProperty 'chromeoptions.prefs', System.getProperty('chromeoptions.prefs', "profile.password_manager_leak_detection=false")
-}
-
-// ДОБАВЛЕНО: Задача для запуска приложения. 
-// Тесты будут ждать, пока приложение полностью не поднимется.
-bootRun {
-    dependsOn build
 }
