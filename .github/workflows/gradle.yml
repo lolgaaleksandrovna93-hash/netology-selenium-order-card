@@ -12,7 +12,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
+      # Установка JDK
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -20,77 +21,66 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      # 1. Сборка
+      # Сборка (без тестов)
       - name: Build application
         shell: powershell
         run: .\gradlew.bat build -x test
 
-      # 2. Запуск SUT в фоне (ИСПРАВЛЕНО: используем CMD вместо PowerShell)
-      # CMD не ломается от экранирования символов в YAML и стабильно запускает процессы в фоне через start /B
+      # Запуск SUT в фоне с проверкой наличия JAR-файла
       - name: Launch SUT (Background)
+        id: launch_sut
         shell: cmd
-        run: |
+        run: |>>
           @echo off
-          REM Ищем первый JAR файл в папке build/libs
-          for /f "delims=" %%i in ('dir .\build\libs\*.jar /b') do set "JAR_FILE=%%i" & goto :found
-          :found
-          
-          if "%JAR_FILE%"=="" (
-            echo ERROR: JAR file not found in .\build\libs!
+          REM Проверяем наличие JAR файла перед запуском
+          if not exist ".\build\libs\*.*" (
+            echo ERROR: No JAR file found in ./build/libs!
             exit /b 1
           )
-          
-          echo Found JAR: %JAR_FILE%
-          echo Launching SUT on port 9999...
-          
-          REM start /B запускает процесс в фоне без открытия нового окна.
-          REM Управление сразу возвращается следующему шагу пайплайна.
-          start /B java -jar .\build\libs\%JAR_FILE% --server.port=9999
-          
-          echo SUT started successfully.
 
-      # 3. Ждем готовности приложения
+          REM Находим первый JAR файл
+          for /f "delims=" %%i in ('dir .\build\libs\*.jar /b') do set "JAR_FILE=%%i"
+
+          REM Запускаем приложение на порту 9999
+          start /B "" java -jar .\build\libs\%JAR_FILE% --server.port=9999
+          echo Application launched successfully.
+
+      # Ждём готовности приложения
       - name: Wait for application to be ready
         shell: powershell
-        run: |
-          \$maxAttempts = 40
-          \$attempt = 0
-          \$url = "http://localhost:9999/"
-          
+        run: |>>
+          $maxAttempts = 60  # Увеличено время ожидания до 2 минут
+          $attempt = 0
+          $url = "http://localhost:9999/"
+
           while ($attempt -lt $maxAttempts) {
             try {
               $response = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 5 -UseBasicParsing
-              if (\$response.StatusCode -eq 200) {
-                Write-Host "✅ Application is ready!"
+              if ($response.StatusCode -eq 200) {
+                Write-Host "🟢 Application is ready!"
                 break
               }
-            }
-            catch {
-              Write-Host "⏳ Waiting for application... (attempt $($attempt + 1)/\$maxAttempts)"
-            }
+            } catch {}
+
             Start-Sleep -Seconds 2
-            \$attempt++
+            $attempt++
+            Write-Host "⏳ Waiting... Attempt $($attempt + 1)/$maxAttempts"
           }
 
-          if ($attempt -eq $maxAttempts) {
-            Write-Error "❌ Application failed to start within time limit."
+          if ($attempt -ge $maxAttempts) {
+            Write-Error "🛑 Application failed to start within time limit."
             exit 1
           }
 
-      # 4. Запуск тестов
+      # Тесты
       - name: Run tests with Gradle
         shell: powershell
         run: .\gradlew.bat test --stacktrace
 
-      # 5. Очистка: убиваем зависшие процессы Java в конце джобы
-      # Выполняется всегда (даже если тесты упали), чтобы освободить порт 9999 для следующих запусков
+      # Очистка окружения (убиваем все процессы Java)
       - name: Stop SUT (Cleanup)
         if: always()
         shell: cmd
         run: |
           @echo off
-          echo Stopping any remaining Java processes...
-          REM taskkill /F принудительно убивает все процессы java.exe на раннере.
-          REM В среде GitHub Actions это безопасно, так как раннер одноразовый.
-          taskkill /F /IM java.exe >nul 2>&1
-          echo Cleanup complete.
+          taskkill /F /IM java.exe >nul 2>&1 || echo ✅ Cleanup complete.
