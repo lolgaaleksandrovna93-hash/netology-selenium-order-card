@@ -24,7 +24,6 @@ jobs:
       - name: Wait for SUT to start
         run: sleep 5
 
-      ***# Делаем скрипт исполняемым***
       - name: Make gradlew executable
         run: chmod +x ./
 
