@@ -1,4 +1,3 @@
-
 package ru.netology.tests;
 
 import io.github.bonigarcia.wdm.WebDriverManager;
@@ -13,6 +12,8 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 public class CardOrderTest {
 
     private static WebDriver driver;
@@ -26,11 +27,11 @@ public class CardOrderTest {
     @BeforeEach
     public void setUp() {
         ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--no-sandbox");
 
         driver = new ChromeDriver(options);
-        driver.manage().window().maximize();
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 
         String baseUrl = System.getenv("SUT_URL") != null ? System.getenv("SUT_URL") : "http://localhost:9999/";
@@ -56,7 +57,7 @@ public class CardOrderTest {
 
         WebElement notification = wait.until(ExpectedConditions.visibilityOfElementLocated(
             By.cssSelector("[data-test-id='notification'] .notification__title")));
-        Assertions.assertEquals("Ваша заявка успешно отправлена", notification.getText());
+        assertEquals("Ваша заявка успешно отправлена", notification.getText());
     }
 
     @Test
@@ -71,7 +72,7 @@ public class CardOrderTest {
             By.cssSelector("[data-test-id='lastName'] .input__error")));
         WebElement input = driver.findElement(By.cssSelector("[data-test-id='lastName'] input"));
 
-        Assertions.assertTrue(error.isDisplayed());
-        Assertions.assertTrue(input.getAttribute("class").contains("input_invalid"));
+        assertTrue(error.isDisplayed());
+        assertTrue(input.getAttribute("class").contains("input_invalid"));
     }
 }
