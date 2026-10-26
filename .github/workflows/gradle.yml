@@ -12,12 +12,13 @@ jobs:
           java-version: '11'
           cache: gradle
       - name: Launch SUT (System Under Test)
+        shell: pwsh
         run: |
           Start-Process -FilePath java `
             -ArgumentList "-jar", ".\artifacts\app-order.jar", "-Dserver.port=9999" `
             -NoNewWindow
       - name: Wait for SUT to start
-        shell: cmd
-        run: timeout /t 5 /nobreak
+        shell: pwsh
+        run: Start-Sleep -Seconds 10
       - name: Build and test with Gradle
         run: .\gradlew.bat test
