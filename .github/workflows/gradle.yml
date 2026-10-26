@@ -31,7 +31,7 @@ jobs:
       - name: Launch SUT (Background)
         shell: powershell
         run: |
-          $jarPath = Get-ChildItem -Path ".\build\libs" -Filter "*.jar" | Select-Object -First 1 -ExpandProperty FullName
+          \$jarPath = Get-ChildItem -Path ".\build\libs" -Filter "*.jar" | Select-Object -First 1 -ExpandProperty FullName
           if (-not \$jarPath) { Write-Error "Jar not found"; exit 1 }
           
           Write-Host "Launching SUT: \$jarPath"
