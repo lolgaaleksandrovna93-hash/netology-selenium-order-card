@@ -1,35 +1,22 @@
 plugins {
     id 'java'
-    // Плагин Spring Boot должен быть здесь, чтобы управлять версиями зависимостей
-    id 'org.springframework.boot' version '3.3.4'
-    id 'io.spring.dependency-management' version '1.1.6' // Этот плагин автоматически подставит версии для starter-ов
+    // УБРАЛИ springBoot, так как у тебя обычный Java класс Main, а не Spring Boot
+    id 'application' // ДОБАВИЛИ этот плагин для создания запускаемого JAR
 }
 
 group = 'ru.netology'
 version = '1.0-SNAPSHOT'
 
 java {
-    sourceCompatibility = 17 // Должно совпадать с JDK в CI
+    sourceCompatibility = '17'
 }
 
-compileJava.options.encoding = "UTF-8"
-compileTestJava.options.encoding = "UTF-8"
-
-repositories {
-    mavenCentral()
+// Указываем, какой класс является точкой входа
+application {
+    mainClass = 'ru.netology.Main'
 }
 
 dependencies {
-    // Теперь можно писать без версии — dependency-management подставит нужную
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    
-    // Тестовые зависимости
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
-    testImplementation 'org.seleniumhq.selenium:selenium-java:4.29.0'
-    testImplementation 'io.github.bonigarcia:webdrivermanager:5.9.3'
-}
-
-test {
-    useJUnitPlatform()
-    systemProperty 'chromeoptions.prefs', System.getProperty('chromeoptions.prefs', "profile.password_manager_leak_detection=false")
+    // Если для тестов нужен Selenium, оставь эту строку:
+    // implementation 'org.seleniumhq.selenium:selenium-java:4.15.0'
 }
