@@ -13,7 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # Установка JDK и Gradle-кэша
       - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
@@ -21,27 +20,56 @@ jobs:
           java-version: '11'
           cache: gradle
 
-      # Проверка существования файла до запуска SUT
-      - name: Check if artifact exists
-        run: |
-          $artifactPath = ".\artifacts\app-order.jar"
-          if (-not(Test-Path $artifactPath)) {
-            Write-Error "Artifact file not found at $artifactPath. Build may have failed."
-            exit 1
-          }
+      # ШАГ 1: Сборка проекта (создаст jar или подготовит классы)
+      - name: Build application
+        shell: powershell
+        run: .\gradlew.bat build -x test
 
-      # Запуск тестируемого приложения
+      # ШАГ 2: Запуск приложения в фоновом режиме
       - name: Launch SUT (System Under Test)
         shell: powershell
         run: |
+          # Запускаем jar в фоне. Используем правильный синтаксис для порта Spring Boot
+          \$jarPath = ".\build\libs\app-order.jar"
+          if (-not (Test-Path \$jarPath)) {
+            Write-Error "Jar file not found at \$jarPath. Did build step fail?"
+            exit 1
+          }
           Start-Process -FilePath java `
-            -ArgumentList "-jar", "$(Get-Location)\artifacts\app-order.jar", "-Dserver.port=9999" `
+            -ArgumentList "-jar", \$jarPath, "--server.port=9999" `
             -NoNewWindow
+          
+          Write-Host "Application started. Waiting for readiness..."
 
-      # Задержка прямо перед запуском тестов
-      - name: Build and test with Gradle 🚀
+      # ШАГ 3: Ожидание готовности приложения (Критически важно!)
+      - name: Wait for application to be ready
         shell: powershell
         run: |
-          # Ждём 5 секунд, пока приложение поднимется
-          Start-Sleep -Seconds 5
-          .\gradlew.bat test --stacktrace
+          \$maxAttempts = 30
+          \$attempt = 0
+          \$url = "http://localhost:9999/"
+          
+          while ($attempt -lt $maxAttempts) {
+            try {
+              $response = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 5 -UseBasicParsing
+              if (\$response.StatusCode -eq 200) {
+                Write-Host "✅ Application is ready!"
+                break
+              }
+            }
+            catch {
+              Write-Host "⏳ Waiting for application... (attempt $($attempt + 1)/\$maxAttempts)"
+            }
+            Start-Sleep -Seconds 2
+            \$attempt++
+          }
+
+          if ($attempt -eq $maxAttempts) {
+            Write-Error "❌ Application failed to start within time limit."
+            exit 1
+          }
+
+      # ШАГ 4: Запуск тестов
+      - name: Run tests with Gradle
+        shell: powershell
+        run: .\gradlew.bat test --stacktrace
