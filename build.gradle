@@ -1,19 +1,31 @@
 plugins {
     id 'java'
-    id 'application' // <--- ЭТО ГЛАВНОЕ: добавляет манифест с Main-Class
 }
 
-group = 'ru.netology'
-version = '1.0-SNAPSHOT'
+group 'ru.netology'
+version '1.0-SNAPSHOT'
 
+// используем 11 версию языка
 java {
-    sourceCompatibility = '17'
+    sourceCompatibility = 11
 }
 
-application {
-    mainClass = 'ru.netology.Main' // <--- Указываем твой класс из скриншота
+// кодировка файлов (если используете русский язык в файлах)
+compileJava.options.encoding = "UTF-8"
+compileTestJava.options.encoding = "UTF-8"
+
+repositories {
+    mavenCentral()
 }
 
 dependencies {
-    // Если нужны зависимости для тестов (Selenium и т.д.), добавляй сюда
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation 'org.seleniumhq.selenium:selenium-java:4.29.0'
+    testImplementation 'io.github.bonigarcia:webdrivermanager:5.9.3'
+}
+
+test {
+    useJUnitPlatform()
+    // свойство chromeoptions.prefs используется для задания настроек браузера в проектах на основе Selenide, выключаем менеджер паролей 
+    systemProperty 'chromeoptions.prefs', System.getProperty('chromeoptions.prefs', "profile.password_manager_leak_detection=false")
 }
