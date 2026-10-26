@@ -12,7 +12,7 @@ jobs:
           java-version: '11'
           cache: gradle
       - name: Запуск SUT (System Under Test)
-        run: start /B java -jar .\artifacts\app-order.jar
+        run: Start-Process -FilePath java -ArgumentList "-jar", ".\artifacts\app-order.jar" -NoNewWindow
       - name: Wait for SUT to start
         run: timeout /t 5 /nobreak
       - name: Build and test with Gradle
