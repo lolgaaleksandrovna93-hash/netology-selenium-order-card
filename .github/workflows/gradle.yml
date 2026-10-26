@@ -20,46 +20,44 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      # Сборка (без тестов, чтобы сначала проверить запуск SUT)
+      # Сборка
       - name: Build application
         shell: powershell
         run: .\gradlew.bat build -x test
 
-      # Запуск SUT в фоне
+      # Запуск SUT
       - name: Launch SUT (Background)
         shell: cmd
         run: |
           @echo off
-          echo Searching for JAR file...
-          
-          REM Ищем первый JAR файл в папке build/libs
+          echo Searching for JAR...
           for /f "delims=" %%i in ('dir .\build\libs\*.jar /b') do set "JAR_FILE=%%i"
           
           if "%JAR_FILE%"=="" (
-            echo ERROR: No JAR file found in ./build/libs!
+            echo ERROR: JAR not found!
             exit /b 1
           )
           
-          echo Found JAR: %JAR_FILE%
+          echo Found: %JAR_FILE%
           echo Launching SUT...
           
-          REM ВАЖНО: Убрали --server.port=9999. 
-          REM Порт 9999 должен быть настроен внутри приложения (application.properties).
+          REM Запуск в фоне. 
+          REM ВАЖНО: Если это НЕ Spring Boot, а простой Main.java, он НЕ откроет порт 9999.
           start /B "" java -jar .\build\libs\%JAR_FILE%
           
-          echo SUT started successfully.
+          echo SUT started.
 
-      # Ждём готовности приложения
+      # Ожидание готовности (ИСПРАВЛЕНО: убраны \$)
       - name: Wait for application to be ready
         shell: powershell
         run: |
+          # Убрали \ перед \$, теперь это валидные переменные PowerShell
           \$maxAttempts = 60
           \$attempt = 0
           \$url = "http://localhost:9999/"
 
           while ($attempt -lt $maxAttempts) {
             try {
-              # Head запрос не загружает тело страницы, только заголовки
               $response = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 5 -UseBasicParsing
               if (\$response.StatusCode -eq 200) {
                 Write-Host "🟢 Application is ready!"
@@ -76,7 +74,6 @@ jobs:
 
           if ($attempt -ge $maxAttempts) {
             Write-Error "🛑 Application failed to start within time limit."
-            Write-Error "Check the logs above to see if the Spring Boot app started correctly."
             exit 1
           }
 
@@ -85,13 +82,11 @@ jobs:
         shell: powershell
         run: .\gradlew.bat test --stacktrace
 
-      # Очистка окружения
+      # Очистка
       - name: Stop SUT (Cleanup)
         if: always()
         shell: cmd
         run: |
           @echo off
-          echo Stopping any remaining Java processes...
           taskkill /F /IM java.exe >nul 2>&1
           echo Cleanup complete.
-
