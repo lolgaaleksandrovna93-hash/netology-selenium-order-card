@@ -13,44 +13,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up JDK 11
+      # ИСПРАВЛЕНО: Java 17 вместо 11
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '17'
           cache: gradle
 
-      # ШАГ 1: Сборка проекта (создаст jar или подготовит классы)
+      # Сборка проекта (создаст JAR)
       - name: Build application
         shell: powershell
         run: .\gradlew.bat build -x test
 
-      # ШАГ 2: Запуск приложения в фоновом режиме
+      # Запуск SUT
       - name: Launch SUT (System Under Test)
         shell: powershell
         run: |
-          # Запускаем jar в фоне. Используем правильный синтаксис для порта Spring Boot
-          \$jarPath = ".\build\libs\app-order.jar"
-          if (-not (Test-Path \$jarPath)) {
-            Write-Error "Jar file not found at \$jarPath. Did build step fail?"
+          # Находим любой JAR в папке build/libs
+          \$jarPath = Get-ChildItem -Path ".\build\libs" -Filter "*.jar" | Select-Object -First 1 -ExpandProperty FullName
+          
+          if (-not \$jarPath) {
+            Write-Error "JAR file not found. Did build step fail?"
             exit 1
           }
+          
+          Write-Host "Starting SUT from: \$jarPath"
+          
+          # Запускаем в фоне
           Start-Process -FilePath java `
             -ArgumentList "-jar", \$jarPath, "--server.port=9999" `
             -NoNewWindow
-          
-          Write-Host "Application started. Waiting for readiness..."
+            
+          Write-Host "SUT started. Waiting for readiness..."
 
-      # ШАГ 3: Ожидание готовности приложения (Критически важно!)
+      # ИСПРАВЛЕНО: Умное ожидание вместо слепого сна
       - name: Wait for application to be ready
         shell: powershell
         run: |
-          \$maxAttempts = 30
+          \$maxAttempts = 40
           \$attempt = 0
           \$url = "http://localhost:9999/"
           
           while ($attempt -lt $maxAttempts) {
             try {
+              # HEAD запрос быстрее и легче, чем GET
               $response = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 5 -UseBasicParsing
               if (\$response.StatusCode -eq 200) {
                 Write-Host "✅ Application is ready!"
@@ -69,7 +76,7 @@ jobs:
             exit 1
           }
 
-      # ШАГ 4: Запуск тестов
+      # Запуск тестов
       - name: Run tests with Gradle
         shell: powershell
         run: .\gradlew.bat test --stacktrace
