@@ -1,24 +1,80 @@
 name: Java CI
-on: [push]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 11
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '17'
           cache: gradle
-      - name: Launch SUT (System Under Test)
-        shell: pwsh
+
+      # 1. Сборка
+      - name: Build application
+        shell: powershell
+        run: .\gradlew.bat build -x test
+
+      # 2. Запуск SUT в фоне (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+      # Мы используем трюк: запускаем java в фоне через Start-Process,
+      # но сразу сохраняем его ID, чтобы потом можно было бы убить, если нужно.
+      - name: Launch SUT (Background)
+        shell: powershell
         run: |
-          Start-Process -FilePath java `
-            -ArgumentList "-jar", ".\artifacts\app-order.jar", "-Dserver.port=9999" `
-            -NoNewWindow
-      - name: Wait for SUT to start
-        shell: pwsh
-        run: Start-Sleep -Seconds 10
-      - name: Build and test with Gradle
-        run: .\gradlew.bat test
+          \$jarPath = Get-ChildItem -Path ".\build\libs" -Filter "*.jar" | Select-Object -First 1 -ExpandProperty FullName
+          if (-not \$jarPath) { Write-Error "Jar not found"; exit 1 }
+          
+          Write-Host "Launching SUT: \$jarPath"
+          
+          # Запускаем в фоне. 
+          # -PassThru возвращает объект процесса, чтобы мы могли видеть его статус
+          \$process = Start-Process -FilePath java `
+            -ArgumentList "-jar", \$jarPath, "--server.port=9999" `
+            -NoNewWindow `
+            -PassThru
+          
+          # Сохраняем PID в переменную окружения для отладки (опционально)
+          echo "SUT_PID=$($process.Id)" >> \$env:GITHUB_ENV
+          
+          Write-Host "SUT started with PID: $($process.Id)"
+      # 3. Ждем готовности (Тот же скрипт, что и раньше)
+      - name: Wait for application to be ready
+        shell: powershell
+        run: |
+          \$maxAttempts = 40
+          \$attempt = 0
+          \$url = "http://localhost:9999/"
+          
+          while ($attempt -lt $maxAttempts) {
+            try {
+              $response = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 5 -UseBasicParsing
+              if (\$response.StatusCode -eq 200) {
+                Write-Host "✅ Application is ready!"
+                break
+              }
+            }
+            catch {
+              Write-Host "⏳ Waiting for application... (attempt $($attempt + 1)/\$maxAttempts)"
+            }
+            Start-Sleep -Seconds 2
+            \$attempt++
+          }
+          if ($attempt -eq $maxAttempts) {
+            Write-Error "❌ Application failed to start within time limit."
+            # Тут можно вывести логи, если приложение упало
+            exit 1
+          }
+      # 4. Запуск тестов
+      - name: Run tests with Gradle
+        shell: powershell
+        run: .\gradlew.bat test --stacktrace

@@ -7,7 +7,7 @@ version '1.0-SNAPSHOT'
 
 // используем 11 версию языка
 java {
-    sourceCompatibility = 11
+    sourceCompatibility = 17
 }
 
 // кодировка файлов (если используете русский язык в файлах)
