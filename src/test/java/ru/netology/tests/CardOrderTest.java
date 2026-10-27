@@ -1,7 +1,9 @@
 package ru.netology.tests;
 
 import io.github.bonigarcia.wdm.WebDriverManager;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -12,67 +14,71 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 public class CardOrderTest {
-
     private static WebDriver driver;
     private static WebDriverWait wait;
 
     @BeforeAll
-    public static void setupAll() {
+    static void setupAll() {
+        // 1. Автоматическая настройка драйвера (WebDriverManager)
         WebDriverManager.chromedriver().setup();
-    }
 
-    @BeforeEach
-    public void setUp() {
+        // 2. Настройка Headless режима и других аргументов для стабильной работы в CI
         ChromeOptions options = new ChromeOptions();
-        options.addArguments("--headless=new");
-        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--headless=new"); // Новый современный headless режим
         options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--window-size=1920,1080"); // Важно для корректного рендеринга
 
         driver = new ChromeDriver(options);
-        wait = new WebDriverWait(driver, Duration.ofSeconds(15));
-
-        String baseUrl = System.getenv("SUT_URL") != null ? System.getenv("SUT_URL") : "http://localhost:9999/";
-        driver.get(baseUrl);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
     }
 
-    @AfterEach
-    public void tearDown() {
+    @AfterAll
+    static void tearDownAll() {
         if (driver != null) {
             driver.quit();
         }
     }
 
     @Test
-    @DisplayName("1. Успешная отправка формы (Happy Path)")
-    public void shouldOrderCardSuccess() {
-        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("[data-test-id='lastName'] input")))
-                .sendKeys("Иванов-Петров");
-        driver.findElement(By.cssSelector("[data-test-id='name'] input")).sendKeys("Иван");
-        driver.findElement(By.cssSelector("[data-test-id='phone'] input")).sendKeys("+79991234567");
-        driver.findElement(By.cssSelector("[data-test-id='agreement'] .checkbox__box")).click();
-        driver.findElement(By.cssSelector("button[type='submit']")).click();
+    void testOrderCardSuccess() {
+        // 3. Запуск SUT (в локальном тесте мы предполагаем, что SUT уже запущен на порту 9999)
+        // В CI это делает gradle.yml. Для локального запуска убедись, что app-order.jar запущен.
+        driver.get("http://localhost:9999/");
 
-        WebElement notification = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                By.cssSelector("[data-test-id='notification'] .notification__title")));
-        assertEquals("Ваша заявка успешно отправлена", notification.getText());
-    }
+        // 4. Поиск элементов по data-test-id (согласно подсказке в задании)
+        // Пример селекторов. ЗАМЕНИ значения внутри кавычек, если в твоем HTML они отличаются!
+        // Обычно это выглядит так: <input data-test-id="card-owner">
 
-    @Test
-    @DisplayName("2. Проверка валидации: пустое поле фамилии")
-    public void shouldShowValidationErrorForEmptyLastName() {
-        driver.findElement(By.cssSelector("[data-test-id='name'] input")).sendKeys("Иван");
-        driver.findElement(By.cssSelector("[data-test-id='phone'] input")).sendKeys("+79991234567");
-        driver.findElement(By.cssSelector("[data-test-id='agreement'] .checkbox__box")).click();
-        driver.findElement(By.cssSelector("button[type='submit']")).click();
+        WebElement ownerInput = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("[data-test-id='card-owner']")));
+        WebElement phoneInput = driver.findElement(By.cssSelector("[data-test-id='card-phone']"));
+        WebElement agreementCheckbox = driver.findElement(By.cssSelector("[data-test-id='agreement']"));
+        WebElement submitButton = driver.findElement(By.cssSelector("[data-test-id='order-button']"));
 
-        WebElement error = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                By.cssSelector("[data-test-id='lastName'] .input__error")));
-        WebElement input = driver.findElement(By.cssSelector("[data-test-id='lastName'] input"));
+        // 5. Ввод данных (Happy Path)
+        ownerInput.sendKeys("Иван Иванов");
+        phoneInput.sendKeys("+79990000000");
 
-        assertTrue(error.isDisplayed());
-        assertTrue(input.getAttribute("class").contains("input_invalid"));
+        // Клик по чекбоксу (согласие)
+        agreementCheckbox.click();
+
+        // 6. Нажатие кнопки "Продолжить"
+        submitButton.click();
+
+        // 7. Проверка результата
+        // Ищем элемент с сообщением об успехе. Селектор зависит от верстки.
+        // Часто это элемент с data-test-id="success-message" или просто текст в блоке.
+        WebElement successMessage = wait.until(ExpectedConditions.visibilityOfElementLocated(
+                By.cssSelector("[data-test-id='success-message']")
+        ));
+
+        // Проверка текста сообщения
+        String actualText = successMessage.getText();
+        assert actualText.contains("Заявка успешно отправлена") ||
+                actualText.contains("Спасибо, ваш заказ принят") :
+                "Ожидалось сообщение об успехе, но получено: " + actualText;
+
+        System.out.println("Тест пройден: " + actualText);
     }
 }

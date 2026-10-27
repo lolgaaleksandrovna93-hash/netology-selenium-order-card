@@ -5,12 +5,10 @@ plugins {
 group 'ru.netology'
 version '1.0-SNAPSHOT'
 
-// используем 11 версию языка
 java {
-    sourceCompatibility = 17
+    sourceCompatibility = 11 // Требование задания
 }
 
-// кодировка файлов (если используете русский язык в файлах)
 compileJava.options.encoding = "UTF-8"
 compileTestJava.options.encoding = "UTF-8"
 
@@ -26,6 +24,17 @@ dependencies {
 
 test {
     useJUnitPlatform()
-    // свойство chromeoptions.prefs используется для задания настроек браузера в проектах на основе Selenide, выключаем менеджер паролей 
     systemProperty 'chromeoptions.prefs', System.getProperty('chromeoptions.prefs', "profile.password_manager_leak_detection=false")
+}
+
+// Блок jar нужен, если ты хочешь запускать тесты как отдельное приложение (java -jar),
+// но для JUnit тестов (gradle test) он не обязателен. Оставляем для совместимости.
+jar {
+    manifest {
+        // Если будешь запускать тесты через java -jar, укажи здесь класс с main()
+        // attributes 'Main-Class': 'ru.netology.selenium.Main'
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
 }
