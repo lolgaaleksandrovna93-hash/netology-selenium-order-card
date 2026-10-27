@@ -6,7 +6,7 @@ group 'ru.netology'
 version '1.0-SNAPSHOT'
 
 java {
-    sourceCompatibility = 11 // Требование задания
+    sourceCompatibility = 17 // Требование задания
 }
 
 compileJava.options.encoding = "UTF-8"

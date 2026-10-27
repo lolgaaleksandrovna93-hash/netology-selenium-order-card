@@ -1,51 +1,58 @@
-name: Java CI with Selenium
+name: Java CI with Gradle
 
 on:
   push:
-    branches: [main]
+    branches: [ "main" ]
   pull_request:
-    branches: [main]
+    branches: [ "main" ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest # Linux лучше для headless Chrome, чем Windows
+    runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 11
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
+          java-version: '17'
           distribution: 'temurin'
-          java-version: '11'
-          cache: gradle
 
-      # ВАЖНО: Если app-order.jar уже в репозитории (как сказано в задании), этот шаг не нужен.
-      # Но если его нет, раскомментируй и укажи ссылку на скачивание.
-      # - name: Download SUT Jar
-      #   run: wget https://example.com/app-order.jar -O artifacts/app-order.jar
+      - name: Build with Gradle
+        run: .\gradlew.bat build --no-daemon
 
-      - name: Verify SUT Jar exists
-        run: ls -la artifacts/
-
-      - name: Start SUT (System Under Test)
-        # Запускаем приложение в фоне. Оно будет слушать порт 9999.
-        # Если порт занят, можно добавить -port=7777
-        run: java -jar artifacts/app-order.jar -port=9999 &
-
-      - name: Wait for SUT to be ready
-        # Ждем, пока порт 9999 станет доступен
+      - name: Launch SUT and Run Tests
+        shell: cmd
+        env:
+          SERVER_PORT: '9999'
         run: |
-          for i in {1..30}; do
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:9999/; then
-              echo "SUT is up!"
-              break
-            else
-              echo "Waiting for SUT... (\$i/30)"
-              sleep 2
-            fi
-          done
-
-      - name: Build and Run Tests
-        run: ./gradlew test --stacktrace
+          @echo [INFO] ==========================================
+          @echo [INFO] STEP 1: Checking for app-order.jar...
+          
+          if not exist "artifacts\app-order.jar" (
+            echo [ERROR] CRITICAL: File artifacts\app-order.jar NOT FOUND!
+            echo [ERROR] You must add the jar file to your repository using: git add -f artifacts/app-order.jar
+            exit /b 1
+          )
+          
+          @echo [INFO] STEP 2: Starting SUT (java -jar)...
+          start "" /B java -jar artifacts\app-order.jar
+          
+          @echo [INFO] STEP 3: Waiting for SUT to initialize (120 seconds)...
+          @echo [INFO] This long wait is required for slow GitHub Actions runners.
+          
+          for /L %%i in (1,1,24) do (
+            timeout /t 5 /nobreak > nul
+            echo [WAIT] Waiting... %%i/24 (Total: %%i*5 sec)
+          )
+          
+          @echo [INFO] STEP 4: Running Selenium/Selenide Tests...
+          .\gradlew.bat test --info --stacktrace
+          
+          if %errorlevel% neq 0 (
+            echo [ERROR] TESTS FAILED with exit code %errorlevel%
+            exit /b 1
+          )
+          
+          echo [SUCCESS] All tests passed!
